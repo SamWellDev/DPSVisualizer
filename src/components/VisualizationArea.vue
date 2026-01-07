@@ -2,8 +2,9 @@
   <div class="relative w-full h-full overflow-hidden bg-gray-900">
     <canvas ref="canvas" class="w-full h-full"></canvas>
 
-    <!-- Stats Display -->
-    <div class="absolute bottom-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
+    <!-- Stats Display (Full Layout Only) -->
+    <div v-if="layoutMode === 'full'"
+      class="absolute bottom-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
       <div class="font-mono flex flex-wrap gap-3">
         <div>
           <div class="text-cyan-400">ATK:</div>
@@ -24,8 +25,9 @@
       </div>
     </div>
 
-    <!-- Monster HP Bar -->
-    <div class="absolute top-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white min-w-[200px]">
+    <!-- Monster HP Bar (Full Layout Only - monster mode draws on canvas) -->
+    <div v-if="layoutMode === 'full'"
+      class="absolute top-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white min-w-[200px]">
       <div class="flex justify-between mb-1">
         <span class="text-red-400 font-bold">{{ monster.name }}</span>
         <span class="text-gray-400">Wave {{ monster.wave }}</span>
@@ -39,10 +41,18 @@
       </div>
     </div>
 
-    <!-- Best Wave Display -->
-    <div class="absolute top-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
+    <!-- Best Wave Display (Full Layout Only) -->
+    <div v-if="layoutMode === 'full'"
+      class="absolute top-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
       <div class="text-yellow-400 text-xs uppercase tracking-wide">🏆 Best Wave</div>
       <div class="text-2xl font-bold text-center">{{ bestWave }}</div>
+    </div>
+
+    <!-- DPS Display (Full Layout Only) -->
+    <div v-if="layoutMode === 'full'"
+      class="absolute bottom-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-white">
+      <div class="text-purple-400 text-xs uppercase tracking-wide">⚡ DPS</div>
+      <div class="text-2xl font-bold text-center font-mono">{{ dps }}</div>
     </div>
   </div>
 </template>
@@ -58,6 +68,18 @@ const props = defineProps({
   bestWave: {
     type: Number,
     default: 1
+  },
+  dps: {
+    type: [Number, String],
+    default: 0
+  },
+  layoutMode: {
+    type: String,
+    default: 'full' // 'full' or 'monster'
+  },
+  showDamageNumbers: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -95,16 +117,19 @@ const hero = reactive({
 // Estado do monstro
 const monster = reactive({
   name: "Slime",
-  x: 78,
+  x: 76,
   y: 55,
   size: 300,
-  maxHp: 140,
-  currentHp: 100,
+  maxHp: 618,      // 10.3 DPS × 60 seconds = 618 HP (1 minute to kill)
+  currentHp: 618,
   wave: 1,
   hitFlash: 0,
   shakeOffset: 0,
   image: null,
-  loaded: false
+  loaded: false,
+  dying: false,
+  deathScale: 1,
+  deathOpacity: 1
 });
 
 // Carregar sprite do soldado
@@ -190,9 +215,18 @@ const createBullet = (isCrit) => {
 
 // Criar número de dano flutuante
 const createDamageNumber = (damage, isCrit, x, y) => {
+  // Center damage numbers in monster-only mode
+  const isMonsterOnly = props.layoutMode === 'monster';
+  const damageX = isMonsterOnly
+    ? canvas.value.width * 0.5 - 20 + Math.random() * 40
+    : x - 20 + Math.random() * 40;
+  const damageY = isMonsterOnly
+    ? canvas.value.height * 0.55 - monster.size / 2
+    : y - monster.size / 2;
+
   damageNumbers.value.push({
-    x: x - 20 + Math.random() * 40,
-    y: y - monster.size / 2,
+    x: damageX,
+    y: damageY,
     damage: Math.floor(damage),
     isCrit,
     opacity: 1,
@@ -236,8 +270,8 @@ const updateBullets = () => {
       createDamageNumber(damage, bullet.isCrit, bullet.x, bullet.y);
 
       // Verificar morte
-      if (monster.currentHp <= 0) {
-        spawnNextMonster();
+      if (monster.currentHp <= 0 && !monster.dying) {
+        startDeathAnimation();
       }
 
       return false; // Remove a bala
@@ -255,12 +289,22 @@ const updateBullets = () => {
   });
 };
 
+// Iniciar animação de morte
+const startDeathAnimation = () => {
+  monster.dying = true;
+  monster.deathScale = 1;
+  monster.deathOpacity = 1;
+};
+
 // Spawnar próximo monstro
 const spawnNextMonster = () => {
   monster.wave++;
-  monster.maxHp = Math.floor(100 * Math.pow(1.5, monster.wave - 1));
+  monster.maxHp = Math.floor(618 * Math.pow(1.5, monster.wave - 1)); // Base 618 HP × 1.5 per wave
   monster.currentHp = monster.maxHp;
   monster.name = getMonsterName(monster.wave);
+  monster.dying = false;
+  monster.deathScale = 1;
+  monster.deathOpacity = 1;
   emit('monsterDefeated', monster.wave);
 };
 
@@ -309,6 +353,15 @@ const updateAnimations = (timestamp) => {
   // Atualizar efeitos do monstro
   if (monster.hitFlash > 0) monster.hitFlash -= 0.15;
   if (monster.shakeOffset > 0) monster.shakeOffset *= 0.85;
+
+  // Atualizar animação de morte
+  if (monster.dying) {
+    monster.deathScale -= 0.03;
+    monster.deathOpacity -= 0.04;
+    if (monster.deathScale <= 0 || monster.deathOpacity <= 0) {
+      spawnNextMonster();
+    }
+  }
 };
 
 // Renderizar cena
@@ -349,20 +402,25 @@ const renderScene = () => {
   // Desenhar monstro
   drawMonster();
 
-  // Desenhar trails das balas
-  drawBulletTrails();
+  // Elements only for full layout mode
+  if (props.layoutMode === 'full') {
+    // Desenhar trails das balas
+    drawBulletTrails();
 
-  // Desenhar balas
-  drawBullets();
+    // Desenhar balas
+    drawBullets();
 
-  // Desenhar muzzle flashes
-  drawMuzzleFlashes();
+    // Desenhar muzzle flashes
+    drawMuzzleFlashes();
 
-  // Desenhar herói
-  drawHero();
+    // Desenhar herói
+    drawHero();
+  }
 
   // Desenhar números de dano
-  drawDamageNumbers();
+  if (props.showDamageNumbers) {
+    drawDamageNumbers();
+  }
 };
 
 // Desenhar herói (soldado)
@@ -399,18 +457,29 @@ const drawHero = () => {
 // Desenhar monstro
 const drawMonster = () => {
   const c = ctx.value;
-  const shake = (Math.random() - 0.5) * monster.shakeOffset;
-  const x = canvas.value.width * (monster.x / 100) + shake;
-  const y = canvas.value.height * (monster.y / 100);
-  const size = monster.size;
+  const isMonsterOnly = props.layoutMode === 'monster';
+
+  // No shake in monster-only mode
+  const shake = isMonsterOnly ? 0 : (Math.random() - 0.5) * monster.shakeOffset;
+
+  // Center monster in monster-only mode
+  const x = isMonsterOnly
+    ? canvas.value.width * 0.5 + shake
+    : canvas.value.width * (monster.x / 100) + shake;
+  const y = isMonsterOnly
+    ? canvas.value.height * 0.55
+    : canvas.value.height * (monster.y / 100);
+  const baseSize = monster.size;
+  const size = baseSize * monster.deathScale;
 
   c.save();
   c.translate(x, y);
+  c.globalAlpha = monster.deathOpacity;
 
-  // Sombra
+  // Sombra (também escala com a morte)
   c.fillStyle = "rgba(0, 0, 0, 0.3)";
   c.beginPath();
-  c.ellipse(0, size * 0.4, size * 0.5, size * 0.15, 0, 0, Math.PI * 2);
+  c.ellipse(5, baseSize * 0.4, size * 0.5, size * 0.15, 0, 0, Math.PI * 2);
   c.fill();
 
   if (monster.loaded && monster.image) {
@@ -437,6 +506,49 @@ const drawMonster = () => {
     c.fill();
   }
 
+  // Draw HP bar above monster in monster-only mode
+  if (isMonsterOnly) {
+    const barWidth = 200;
+    const barHeight = 16;
+    const barY = -size / 2 - 60;
+
+    // Background panel
+    c.beginPath();
+    c.fillStyle = "rgba(0, 0, 0, 0.7)";
+    c.roundRect(-barWidth / 2 - 10, barY - 20, barWidth + 20, barHeight + 35, 8);
+    c.fill();
+
+    // Monster name
+    c.fillStyle = "#ef4444";
+    c.font = "bold 14px Arial";
+    c.textAlign = "center";
+    c.fillText(monster.name, 0, barY - 5);
+
+    // HP bar background
+    c.beginPath();
+    c.fillStyle = "#374151";
+    c.roundRect(-barWidth / 2, barY + 5, barWidth, barHeight, 4);
+    c.fill();
+
+    // HP bar fill
+    const hpPercent = Math.max(0, monster.currentHp / monster.maxHp);
+    if (hpPercent > 0) {
+      c.beginPath();
+      const gradient = c.createLinearGradient(-barWidth / 2, 0, barWidth / 2, 0);
+      gradient.addColorStop(0, "#dc2626");
+      gradient.addColorStop(1, "#f87171");
+      c.fillStyle = gradient;
+      c.roundRect(-barWidth / 2, barY + 5, barWidth * hpPercent, barHeight, 4);
+      c.fill();
+    }
+
+    // Wave text below
+    c.fillStyle = "#9ca3af";
+    c.font = "12px Arial";
+    c.fillText(`Wave ${monster.wave}`, 0, barY + barHeight + 20);
+  }
+
+  c.globalAlpha = 1;
   c.restore();
 };
 

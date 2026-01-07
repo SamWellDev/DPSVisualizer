@@ -1,4 +1,4 @@
-# 🎮 Boss Fight Stream Overlay
+# 🎮 Twitch Fighter
 
 An interactive stream overlay that gamifies audience engagement through a real-time boss battle system. Viewers can boost the hero's power through subscriptions, follows, and donations.
 
@@ -51,14 +51,26 @@ npm run build
 
 ## 🔮 Roadmap
 
-- [ ] **Twitch Integration** - Real-time events via Twitch API
-- [ ] **YouTube Integration** - Super Chat and membership support
-- [ ] **Streamlabs Webhooks** - Donation and event handling
-- [ ] **Backend Persistence** - Save wave progress to database
-- [ ] **Multiple Monster Sprites** - Different enemies per wave range
+### Phase 1: Configuration
+- [ ] **Settings UI** - Configuration panel for all overlay options
+- [ ] **Twitch OAuth Setup** - Connect Twitch account flow
+- [ ] **Buff Customization** - Adjust ATK/SPD/Crit values per event type
+- [ ] **Visual Settings** - Sprite positions, sizes, and overlay transparency
+
+### Phase 2: Twitch Integration
+- [ ] **Twitch EventSub** - Real-time follows, subs, and bits via WebSocket
+- [ ] **Channel Points** - Custom rewards that trigger buffs
+- [ ] **Chat Commands** - Optional commands for viewers
+
+### Phase 3: Polish
 - [ ] **Sound Effects** - Hit sounds, criticals, and wave completion
+- [ ] **Multiple Monster Sprites** - Different enemies per wave range
+- [ ] **Backend Persistence** - Save wave progress to database
 - [ ] **Leaderboard** - Track highest waves across months
-- [ ] **Overlay Customization** - Configurable positions and themes
+
+### Phase 4: Engagement
+- [ ] **Shop** - In-app store for upgrades or cosmetics
+- [ ] **Achievements** - Unlockable badges and milestones
 
 ## 📁 Project Structure
 
