@@ -12,14 +12,15 @@
                 <div class="lg:col-span-2">
                     <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden" style="height: 500px;">
                         <VisualizationArea :heroStats="activeStats" :bestWave="bestWave" :dps="calculatedDPS"
-                            :layoutMode="layoutMode" :showDamageNumbers="showDamageNumbers"
+                            :layoutMode="layoutMode" :showDamageNumbers="showDamageNumbers" :isLive="isLive"
                             @monsterDefeated="onMonsterDefeated" />
                     </div>
 
                     <!-- Stats Row below Visualization -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                         <EventCounters :counts="eventCounts" periodLabel="This month" />
                         <MonthlyProgress :currentWave="currentWave" :records="monthlyRecords" />
+                        <GlobalRankings :rankings="globalRankings" :currentUserRank="currentUserRank" />
                     </div>
                 </div>
 
@@ -88,102 +89,20 @@
                             </label>
                         </div>
 
-                        <!-- Buff Config Fields -->
-                        <div class="space-y-3 mb-6">
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-purple-400 font-medium">👤 Follow</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-gray-400 text-sm">+</span>
-                                    <input type="number" v-model.number="buffConfig.follow.critChance"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">% Crit</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-blue-400 font-medium">⭐ Sub Tier 1</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-gray-400 text-sm">+</span>
-                                    <input type="number" step="0.1" v-model.number="buffConfig.sub1.spd"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">SPD</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-indigo-400 font-medium">⭐⭐ Sub Tier 2</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-gray-400 text-sm">+</span>
-                                    <input type="number" step="0.1" v-model.number="buffConfig.sub2.spd"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">SPD</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-pink-400 font-medium">⭐⭐⭐ Sub Tier 3</span>
-                                </div>
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-gray-400 text-sm">+</span>
-                                    <input type="number" step="0.1" v-model.number="buffConfig.sub3.spd"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">SPD, +</span>
-                                    <input type="number" v-model.number="buffConfig.sub3.atk"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">ATK</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-green-400 font-medium">💵 Donate $5</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-gray-400 text-sm">+</span>
-                                    <input type="number" v-model.number="buffConfig.donate5.atk"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">ATK</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-yellow-400 font-medium">💰 Donate $10+</span>
-                                </div>
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-gray-400 text-sm">+</span>
-                                    <input type="number" v-model.number="buffConfig.donate10.atk"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">ATK, +</span>
-                                    <input type="number" v-model.number="buffConfig.donate10.critDamage"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">% Crit DMG</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-orange-400 font-medium">💎 Bits</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-gray-400 text-sm">1 bit = +</span>
-                                    <input type="number" step="0.1" v-model.number="buffConfig.bits.critDamage"
-                                        class="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm" />
-                                    <span class="text-gray-400 text-sm">% Crit DMG</span>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Live Toggle Button -->
+                        <button @click="toggleLive" :class="[
+                            'w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 mb-4',
+                            isLive
+                                ? 'bg-red-600 hover:bg-red-500 text-white'
+                                : 'bg-green-600 hover:bg-green-500 text-white'
+                        ]">
+                            <span v-if="isLive" class="w-3 h-3 bg-white rounded-full animate-pulse"></span>
+                            {{ isLive ? '⏹️ Manual Shutdown' : '▶️ Go Live' }}
+                        </button>
 
                         <!-- Save Button -->
                         <button @click="saveConfig"
-                            class="w-full py-3 px-4 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors">
+                            class="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
                             💾 Save Configuration
                         </button>
                     </div>
@@ -253,6 +172,11 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Achievements Section (Full Width) -->
+            <div class="mt-6">
+                <Achievements :achievements="achievements" />
+            </div>
         </main>
 
         <!-- Footer -->
@@ -294,6 +218,8 @@ import AppFooter from '../components/AppFooter.vue'
 import StatsDisplay from '../components/StatsDisplay.vue'
 import MonthlyProgress from '../components/MonthlyProgress.vue'
 import EventCounters from '../components/EventCounters.vue'
+import GlobalRankings from '../components/GlobalRankings.vue'
+import Achievements from '../components/Achievements.vue'
 
 const router = useRouter()
 
@@ -302,8 +228,13 @@ const activeTab = ref('config')
 const layoutMode = ref('full') // 'full' or 'monster'
 const showDamageNumbers = ref(true)
 const showResetModal = ref(false)
+const isLive = ref(true) // Live/Offline toggle
 
-// Buff configuration (editable)
+const toggleLive = () => {
+    isLive.value = !isLive.value
+}
+
+// Buff configuration (fixed values - not editable in UI)
 const buffConfig = reactive({
     follow: { critChance: 2 },
     sub1: { spd: 0.5 },
@@ -440,6 +371,104 @@ const logout = () => {
 
 // Previous months history (will be loaded from backend)
 const monthlyRecords = []
+
+// Global rankings (will be loaded from backend)
+const globalRankings = ref([
+    { name: 'xQc', wave: 245, avatar: null },
+    { name: 'Pokimane', wave: 198, avatar: null },
+    { name: 'Shroud', wave: 187, avatar: null },
+    { name: 'Ninja', wave: 156, avatar: null },
+    { name: 'DrLupo', wave: 142, avatar: null },
+    { name: 'TimTheTatman', wave: 128, avatar: null },
+    { name: 'Summit1g', wave: 115, avatar: null },
+])
+
+// Current user's rank (will be loaded from backend)
+const currentUserRank = ref({ rank: 42, wave: currentWave.value, avatar: null })
+
+// Achievements (will be loaded from backend)
+const achievements = ref([
+    {
+        id: 'first_kill',
+        name: 'First Blood',
+        description: 'Defeat your first monster',
+        icon: '/cheevos/first_kill.png',
+        unlocked: true,
+        unlockedAt: '2 days ago',
+        isNew: true,
+        hint: 'Defeat a monster'
+    },
+    {
+        id: 'wave_10',
+        name: 'Getting Started',
+        description: 'Reach wave 10',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'Keep fighting!'
+    },
+    {
+        id: 'wave_50',
+        name: 'Veteran',
+        description: 'Reach wave 50',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'Half way there!'
+    },
+    {
+        id: 'wave_100',
+        name: 'Centurion',
+        description: 'Reach wave 100',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'The century awaits!'
+    },
+    {
+        id: 'first_sub',
+        name: 'Community Support',
+        description: 'Receive your first subscription',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'Get a subscriber'
+    },
+    {
+        id: 'crit_master',
+        name: 'Critical Master',
+        description: 'Reach 50% critical chance',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'Followers boost crit!'
+    },
+    {
+        id: 'speed_demon',
+        name: 'Speed Demon',
+        description: 'Reach 5.0 attack speed',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'Subs boost speed!'
+    },
+    {
+        id: 'whale',
+        name: 'Whale Watcher',
+        description: 'Receive 10,000 bits total',
+        icon: '/cheevos/first_kill.png',
+        unlocked: false,
+        unlockedAt: null,
+        isNew: false,
+        hint: 'Bits add up!'
+    }
+])
 
 // Best wave achieved (history + current)
 const bestWave = computed(() => {

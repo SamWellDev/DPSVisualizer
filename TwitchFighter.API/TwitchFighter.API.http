@@ -1,0 +1,6 @@
+@TwitchFighter.API_HostAddress = http://localhost:5041
+
+GET {{TwitchFighter.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

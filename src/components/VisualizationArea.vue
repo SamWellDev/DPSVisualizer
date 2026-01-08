@@ -1,9 +1,25 @@
 <template>
   <div class="relative w-full h-full overflow-hidden bg-gray-900">
-    <canvas ref="canvas" class="w-full h-full"></canvas>
+    <canvas ref="canvas"
+      :class="['w-full h-full transition-all duration-500', !isLive && 'grayscale opacity-60']"></canvas>
+
+    <!-- OFFLINE Overlay -->
+    <div v-if="!isLive" class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+      <div class="text-center">
+        <div class="text-red-500 font-bold text-4xl tracking-wider">OFFLINE</div>
+        <div class="text-gray-400 text-sm mt-2">Stream is not active</div>
+      </div>
+    </div>
+
+    <!-- Live indicator in corner when live -->
+    <div v-if="isLive && layoutMode === 'full'"
+      class="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
+      <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+      <span class="text-white font-bold text-xs">LIVE</span>
+    </div>
 
     <!-- Stats Display (Full Layout Only) -->
-    <div v-if="layoutMode === 'full'"
+    <div v-if="layoutMode === 'full' && isLive"
       class="absolute bottom-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
       <div class="font-mono flex flex-wrap gap-3">
         <div>
@@ -26,7 +42,7 @@
     </div>
 
     <!-- Monster HP Bar (Full Layout Only - monster mode draws on canvas) -->
-    <div v-if="layoutMode === 'full'"
+    <div v-if="layoutMode === 'full' && isLive"
       class="absolute top-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white min-w-[200px]">
       <div class="flex justify-between mb-1">
         <span class="text-red-400 font-bold">{{ monster.name }}</span>
@@ -42,14 +58,14 @@
     </div>
 
     <!-- Best Wave Display (Full Layout Only) -->
-    <div v-if="layoutMode === 'full'"
-      class="absolute top-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
+    <div v-if="layoutMode === 'full' && isLive"
+      class="absolute top-14 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
       <div class="text-yellow-400 text-xs uppercase tracking-wide">🏆 Best Wave</div>
       <div class="text-2xl font-bold text-center">{{ bestWave }}</div>
     </div>
 
     <!-- DPS Display (Full Layout Only) -->
-    <div v-if="layoutMode === 'full'"
+    <div v-if="layoutMode === 'full' && isLive"
       class="absolute bottom-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-white">
       <div class="text-purple-400 text-xs uppercase tracking-wide">⚡ DPS</div>
       <div class="text-2xl font-bold text-center font-mono">{{ dps }}</div>
@@ -78,6 +94,10 @@ const props = defineProps({
     default: 'full' // 'full' or 'monster'
   },
   showDamageNumbers: {
+    type: Boolean,
+    default: true
+  },
+  isLive: {
     type: Boolean,
     default: true
   }
@@ -325,11 +345,13 @@ const updateAnimations = (timestamp) => {
     if (hero.recoil < 0.5) hero.recoil = 0;
   }
 
-  // Verificar se deve atirar
-  const attackInterval = 1000 / props.heroStats.spd;
-  if (timestamp - lastAttackTime >= attackInterval) {
-    performAttack();
-    lastAttackTime = timestamp;
+  // Verificar se deve atirar (only when live)
+  if (props.isLive) {
+    const attackInterval = 1000 / props.heroStats.spd;
+    if (timestamp - lastAttackTime >= attackInterval) {
+      performAttack();
+      lastAttackTime = timestamp;
+    }
   }
 
   // Atualizar balas

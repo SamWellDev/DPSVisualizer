@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# C#/.NET
+bin/
+obj/
+*.user
+appsettings.json
+appsettings.*.json
+!appsettings.Example.json
