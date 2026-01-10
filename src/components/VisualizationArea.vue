@@ -75,6 +75,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
+import { useSignalR } from '../composables/signalr';
 
 const props = defineProps({
   heroStats: {
@@ -100,10 +101,26 @@ const props = defineProps({
   isLive: {
     type: Boolean,
     default: true
+  },
+  twitchId: {
+    type: String,
+    default: null
+  },
+  testMode: {
+    type: Boolean,
+    default: false
+  },
+  heroSkin: {
+    type: String,
+    default: null // If null, will read from localStorage
   }
 });
 
-const emit = defineEmits(['monsterDefeated']);
+const emit = defineEmits(['monsterDefeated', 'twitchEvent', 'buffApplied']);
+
+// SignalR connection
+const { connect, onTwitchEvent, isConnected, disconnect } = useSignalR();
+const buffNotification = ref(null);
 
 const canvas = ref(null);
 const ctx = ref(null);
@@ -152,13 +169,25 @@ const monster = reactive({
   deathOpacity: 1
 });
 
+// Initialize monster based on mode
+const initMonster = () => {
+  if (props.testMode) {
+    monster.name = "Dummy";
+    monster.maxHp = Infinity;
+    monster.currentHp = Infinity;
+    monster.wave = 0;
+  }
+};
+
 // Carregar sprite do soldado
 const loadHeroSprite = () => {
   hero.image = new Image();
   hero.image.onload = () => {
     hero.loaded = true;
   };
-  hero.image.src = '/sprites/hero_1.png';
+  // Use prop if provided, otherwise check localStorage, fallback to default
+  const skin = props.heroSkin || localStorage.getItem('hero_skin') || 'hero_1';
+  hero.image.src = skin === 'hero_1' ? '/sprites/hero_1.png' : `/sprites/${skin}.png`;
 };
 
 // Carregar sprite do monstro
@@ -289,8 +318,8 @@ const updateBullets = () => {
       // Número de dano
       createDamageNumber(damage, bullet.isCrit, bullet.x, bullet.y);
 
-      // Verificar morte
-      if (monster.currentHp <= 0 && !monster.dying) {
+      // Verificar morte (skip in test mode - dummy is immortal)
+      if (!props.testMode && monster.currentHp <= 0 && !monster.dying) {
         startDeathAnimation();
       }
 
@@ -443,6 +472,9 @@ const renderScene = () => {
   if (props.showDamageNumbers) {
     drawDamageNumbers();
   }
+
+  // Desenhar notificação de buff
+  drawBuffNotification();
 };
 
 // Desenhar herói (soldado)
@@ -683,6 +715,54 @@ const drawDamageNumbers = () => {
   });
 };
 
+// Desenhar notificação de buff do Twitch
+const drawBuffNotification = () => {
+  if (!buffNotification.value || buffNotification.value.opacity <= 0) return;
+
+  const c = ctx.value;
+  const notif = buffNotification.value;
+  const centerX = canvas.value.width / 2;
+  const y = notif.y;
+
+  c.save();
+  c.globalAlpha = notif.opacity;
+
+  // Cor baseada no tipo de evento
+  let eventColor = '#22c55e'; // follow - green
+  let eventIcon = '👤';
+  let buffColor = '#3b82f6';
+
+  if (notif.type === 'subscription') {
+    eventColor = '#a855f7'; // sub - purple
+    eventIcon = '⭐';
+  } else if (notif.type === 'bits') {
+    eventColor = '#f59e0b'; // bits - amber
+    eventIcon = '💎';
+  }
+
+  // Background panel
+  c.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  c.beginPath();
+  c.roundRect(centerX - 150, y - 25, 300, 60, 10);
+  c.fill();
+
+  // Event icon and username
+  c.font = 'bold 16px Arial';
+  c.textAlign = 'center';
+  c.fillStyle = eventColor;
+  c.fillText(`${eventIcon} ${notif.userName}`, centerX, y);
+
+  // Buff info
+  if (notif.buff) {
+    const buffText = `+${notif.buff.Value} ${notif.buff.Type.toUpperCase()}`;
+    c.font = 'bold 20px Arial';
+    c.fillStyle = buffColor;
+    c.fillText(buffText, centerX, y + 25);
+  }
+
+  c.restore();
+};
+
 // Loop de animação
 const animate = (timestamp) => {
   updateAnimations(timestamp);
@@ -691,14 +771,72 @@ const animate = (timestamp) => {
 };
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  initMonster(); // Set up Dummy if in test mode
   loadHeroSprite();
   loadMonsterSprite();
   setupCanvas();
   animationFrameId = requestAnimationFrame(animate);
 
   window.addEventListener('resize', setupCanvas);
+
+  // Connect to SignalR if twitchId is provided
+  if (props.twitchId) {
+    try {
+      await connect(props.twitchId);
+
+      // Listen for Twitch events
+      onTwitchEvent((event) => {
+        console.log('Twitch event received:', event);
+
+        // Emit event to parent
+        emit('twitchEvent', event);
+
+        // Emit specific buff event
+        if (event.Buff) {
+          emit('buffApplied', {
+            type: event.Buff.Type,
+            value: event.Buff.Value,
+            userName: event.UserName,
+            eventType: event.Type
+          });
+        }
+
+        // Show notification
+        showBuffNotification(event);
+      });
+    } catch (err) {
+      console.error('Failed to connect to SignalR:', err);
+    }
+  }
 });
+
+// Show buff notification on canvas
+const showBuffNotification = (event) => {
+  buffNotification.value = {
+    userName: event.UserName,
+    type: event.Type,
+    buff: event.Buff,
+    opacity: 1,
+    y: 100
+  };
+
+  // Animate notification fade out
+  const fadeOut = () => {
+    if (buffNotification.value) {
+      buffNotification.value.opacity -= 0.02;
+      buffNotification.value.y -= 0.5;
+
+      if (buffNotification.value.opacity > 0) {
+        requestAnimationFrame(fadeOut);
+      } else {
+        buffNotification.value = null;
+      }
+    }
+  };
+
+  setTimeout(fadeOut, 2000);
+};
 
 onUnmounted(() => {
   if (animationFrameId) {

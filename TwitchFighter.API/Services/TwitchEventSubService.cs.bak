@@ -3,8 +3,12 @@ using TwitchFighter.API.Hubs;
 using TwitchLib.Api;
 using TwitchLib.Api.Core.Enums;
 using TwitchLib.EventSub.Websockets;
-using TwitchLib.EventSub.Websockets.Core.EventArgs;
+using TwitchLib.EventSub.Core.EventArgs;
 using TwitchLib.EventSub.Core.EventArgs.Channel;
+using TwitchLib.EventSub.Core.SubscriptionTypes.Channel; 
+
+// ... (rest of imports)
+
 
 namespace TwitchFighter.API.Services;
 
@@ -15,21 +19,18 @@ public class TwitchEventSubService : IHostedService
     private readonly IConfiguration _config;
     private readonly EventSubWebsocketClient _eventSubClient;
     private readonly TwitchAPI _twitchApi;
-    private readonly GameConfigService _gameConfig;
     private string? _broadcasterId;
 
     public TwitchEventSubService(
         ILogger<TwitchEventSubService> logger,
         IHubContext<GameHub> hubContext,
         IConfiguration config,
-        EventSubWebsocketClient eventSubClient,
-        GameConfigService gameConfig)
+        EventSubWebsocketClient eventSubClient)
     {
         _logger = logger;
         _hubContext = hubContext;
         _config = config;
         _eventSubClient = eventSubClient;
-        _gameConfig = gameConfig;
 
         // Initialize Twitch API
         _twitchApi = new TwitchAPI();
@@ -53,10 +54,10 @@ public class TwitchEventSubService : IHostedService
         _logger.LogInformation("Starting Twitch EventSub WebSocket service...");
 
         // Get App Access Token
-        var accessToken = await _twitchApi.Auth.GetAccessTokenAsync();
-        if (!string.IsNullOrEmpty(accessToken))
+        var tokenResponse = await _twitchApi.Auth.GetAccessTokenAsync();
+        if (tokenResponse != null)
         {
-            _twitchApi.Settings.AccessToken = accessToken;
+            _twitchApi.Settings.AccessToken = tokenResponse.AccessToken;
             _logger.LogInformation("Obtained Twitch App Access Token");
         }
 
@@ -69,13 +70,10 @@ public class TwitchEventSubService : IHostedService
         _logger.LogInformation("Twitch EventSub WebSocket disconnected.");
     }
 
-    public async Task SetBroadcasterId(string broadcasterId)
+    public void SetBroadcasterId(string broadcasterId)
     {
         _broadcasterId = broadcasterId;
         _logger.LogInformation("Broadcaster ID set to: {BroadcasterId}", broadcasterId);
-        
-        // Subscribe to events now that we have a broadcaster ID
-        await SubscribeToEvents();
     }
 
     private async Task OnWebsocketConnected(object? sender, WebsocketConnectedArgs args)
@@ -134,7 +132,7 @@ public class TwitchEventSubService : IHostedService
         }
     }
 
-    private async Task OnWebsocketDisconnected(object? sender, WebsocketDisconnectedArgs args)
+    private async Task OnWebsocketDisconnected(object? sender, EventArgs args)
     {
         _logger.LogWarning("EventSub WebSocket disconnected. Attempting to reconnect...");
 
@@ -145,22 +143,19 @@ public class TwitchEventSubService : IHostedService
         }
     }
 
-    private Task OnWebsocketReconnected(object? sender, WebsocketReconnectedArgs args)
+    private async Task OnWebsocketReconnected(object? sender, EventArgs args)
     {
         _logger.LogInformation("EventSub WebSocket reconnected");
-        return Task.CompletedTask;
     }
 
-    private Task OnErrorOccurred(object? sender, ErrorOccuredArgs args)
+    private async Task OnErrorOccurred(object? sender, ErrorOccurredArgs args)
     {
         _logger.LogError(args.Exception, "EventSub error: {Message}", args.Message);
-        return Task.CompletedTask;
     }
 
     private async Task OnChannelFollow(object? sender, ChannelFollowArgs args)
     {
-        var follow = args.Payload.Event;
-        var buffConfig = _gameConfig.Config.Buffs.Follow;
+        var follow = args.Notification.Payload.Event;
 
         _logger.LogInformation("New follow from {UserName} on channel {BroadcasterName}",
             follow.UserName, follow.BroadcasterUserName);
@@ -171,25 +166,24 @@ public class TwitchEventSubService : IHostedService
             Type = "follow",
             UserName = follow.UserName,
             UserId = follow.UserId,
-            Buff = new { Type = buffConfig.Type, Value = buffConfig.Value }
+            Buff = new { Type = "atk", Value = 5 }
         });
     }
 
     private async Task OnChannelSubscribe(object? sender, ChannelSubscribeArgs args)
     {
-        var sub = args.Payload.Event;
-        var buffs = _gameConfig.Config.Buffs;
+        var sub = args.Notification.Payload.Event;
 
         _logger.LogInformation("New subscription from {UserName} - Tier: {Tier}",
             sub.UserName, sub.Tier);
 
-        // Get buff values based on tier from config
-        var (buffType, buffValue, bonusAtk) = sub.Tier switch
+        // Calculate buff based on tier
+        int buffValue = sub.Tier switch
         {
-            "1000" => (buffs.SubTier1.Type, buffs.SubTier1.Value, 0.0),
-            "2000" => (buffs.SubTier2.Type, buffs.SubTier2.Value, 0.0),
-            "3000" => (buffs.SubTier3.Type, buffs.SubTier3.Value, buffs.SubTier3.BonusAtk),
-            _ => (buffs.SubTier1.Type, buffs.SubTier1.Value, 0.0)
+            "1000" => 10,  // Tier 1
+            "2000" => 25,  // Tier 2
+            "3000" => 50,  // Tier 3
+            _ => 10
         };
 
         await _hubContext.Clients.Group(sub.BroadcasterUserId).SendAsync("TwitchEvent", new
@@ -198,21 +192,19 @@ public class TwitchEventSubService : IHostedService
             UserName = sub.UserName,
             UserId = sub.UserId,
             Tier = sub.Tier,
-            Buff = new { Type = buffType, Value = buffValue },
-            BonusAtk = bonusAtk
+            Buff = new { Type = "spd", Value = buffValue }
         });
     }
 
     private async Task OnChannelCheer(object? sender, ChannelCheerArgs args)
     {
-        var cheer = args.Payload.Event;
-        var bitsConfig = _gameConfig.Config.Buffs.BitsPerHundred;
+        var cheer = args.Notification.Payload.Event;
 
         _logger.LogInformation("Cheer from {UserName}: {Bits} bits",
             cheer.UserName ?? "Anonymous", cheer.Bits);
 
-        // Calculate buff based on bits (config is per 100 bits)
-        double buffValue = (cheer.Bits / 100.0) * bitsConfig.Value;
+        // 1 bit = 0.1% crit chance (100 bits = 10%)
+        double critBonus = cheer.Bits * 0.1;
 
         await _hubContext.Clients.Group(cheer.BroadcasterUserId).SendAsync("TwitchEvent", new
         {
@@ -220,7 +212,7 @@ public class TwitchEventSubService : IHostedService
             UserName = cheer.UserName ?? "Anonymous",
             Bits = cheer.Bits,
             Message = cheer.Message,
-            Buff = new { Type = bitsConfig.Type, Value = buffValue }
+            Buff = new { Type = "crit_chance", Value = critBonus }
         });
     }
 }

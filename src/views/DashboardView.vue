@@ -11,9 +11,11 @@
                 <!-- Visualization Area (2/3) -->
                 <div class="lg:col-span-2">
                     <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden" style="height: 500px;">
-                        <VisualizationArea :heroStats="activeStats" :bestWave="bestWave" :dps="calculatedDPS"
-                            :layoutMode="layoutMode" :showDamageNumbers="showDamageNumbers" :isLive="isLive"
-                            @monsterDefeated="onMonsterDefeated" />
+                        <VisualizationArea :key="activeTab" :heroStats="activeStats" :bestWave="bestWave"
+                            :dps="calculatedDPS" :layoutMode="layoutMode" :showDamageNumbers="showDamageNumbers"
+                            :isLive="activeTab === 'test' || isLive"
+                            :twitchId="activeTab === 'config' ? twitchId : null" :testMode="activeTab === 'test'"
+                            @monsterDefeated="onMonsterDefeated" @buffApplied="onBuffApplied" />
                     </div>
 
                     <!-- Stats Row below Visualization -->
@@ -157,7 +159,7 @@
                                 class="w-full py-3 px-4 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors flex items-center justify-between">
                                 <span>💎 100 Bits</span>
                                 <span class="text-orange-200 text-sm">+{{ (buffConfig.bits.critDamage * 100).toFixed(0)
-                                    }}% Crit DMG</span>
+                                }}% Crit DMG</span>
                             </button>
                         </div>
 
@@ -210,8 +212,8 @@
 </template>
 
 <script setup>
-import { reactive, computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, computed, ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import VisualizationArea from '../components/VisualizationArea.vue'
 import AppHeader from '../components/AppHeader.vue'
 import AppFooter from '../components/AppFooter.vue'
@@ -220,8 +222,15 @@ import MonthlyProgress from '../components/MonthlyProgress.vue'
 import EventCounters from '../components/EventCounters.vue'
 import GlobalRankings from '../components/GlobalRankings.vue'
 import Achievements from '../components/Achievements.vue'
+import { configApi } from '../services/api'
 
 const router = useRouter()
+const route = useRoute()
+
+// User authentication state
+const twitchId = ref(localStorage.getItem('twitch_id') || null)
+const userId = ref(localStorage.getItem('user_id') || null)
+const accessToken = ref(localStorage.getItem('access_token') || null)
 
 const currentWave = ref(1)
 const activeTab = ref('config')
@@ -230,11 +239,67 @@ const showDamageNumbers = ref(true)
 const showResetModal = ref(false)
 const isLive = ref(true) // Live/Offline toggle
 
+// Handle auth callback params on mount
+onMounted(async () => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const token = urlParams.get('token')
+    const id = urlParams.get('userId')
+    const twitch = urlParams.get('twitchId')
+
+    if (token && id && twitch) {
+        // Store auth data
+        localStorage.setItem('access_token', token)
+        localStorage.setItem('user_id', id)
+        localStorage.setItem('twitch_id', twitch)
+        accessToken.value = token
+        userId.value = id
+        twitchId.value = twitch
+
+        // Clean URL
+        window.history.replaceState({}, document.title, '/dashboard')
+
+        console.log('Auth successful! Twitch ID:', twitch)
+    }
+
+    // Fetch game config from backend
+    try {
+        const { data } = await configApi.getGameConfig()
+        gameConfig.value = data
+        configLoaded.value = true
+
+        // Update buff config with backend values
+        if (data.Buffs) {
+            buffConfig.follow.critChance = data.Buffs.Follow?.Value || 2
+            buffConfig.sub1.spd = data.Buffs.SubTier1?.Value || 0.5
+            buffConfig.sub2.spd = data.Buffs.SubTier2?.Value || 1.0
+            buffConfig.sub3.spd = data.Buffs.SubTier3?.Value || 1.5
+            buffConfig.sub3.atk = data.Buffs.SubTier3?.BonusAtk || 10
+            buffConfig.bits.critDamage = data.Buffs.BitsPerHundred?.Value || 10
+        }
+
+        // Update base stats from config
+        if (data.Hero) {
+            baseStats.atk = data.Hero.BaseAtk || 10
+            baseStats.spd = data.Hero.BaseSpd || 1.0
+            baseStats.critChance = data.Hero.BaseCritChance || 5
+            baseStats.critDamage = data.Hero.BaseCritDamage || 150
+
+            // Also update live and test stats
+            Object.assign(liveStats, baseStats)
+            Object.assign(testStats, baseStats)
+        }
+
+        console.log('Game config loaded:', data)
+    } catch (err) {
+        console.warn('Failed to load game config, using defaults:', err.message)
+    }
+})
+
 const toggleLive = () => {
     isLive.value = !isLive.value
 }
 
-// Buff configuration (fixed values - not editable in UI)
+// Buff configuration (loaded from backend)
 const buffConfig = reactive({
     follow: { critChance: 2 },
     sub1: { spd: 0.5 },
@@ -242,8 +307,12 @@ const buffConfig = reactive({
     sub3: { spd: 1.5, atk: 10 },
     donate5: { atk: 5 },
     donate10: { atk: 20, critDamage: 15 },
-    bits: { critDamage: 1 } // 1 bit = 1% crit damage
+    bits: { critDamage: 10 } // per 100 bits
 })
+
+// Game config loaded from backend
+const gameConfig = ref(null)
+const configLoaded = ref(false)
 
 // Event counters (for display)
 const eventCounts = reactive({
@@ -253,13 +322,13 @@ const eventCounts = reactive({
     bits: 0
 })
 
-// Base stats (initial values)
-const baseStats = {
+// Base stats (loaded from backend config)
+const baseStats = reactive({
     atk: 10,
     spd: 1.0,
     critChance: 5,
     critDamage: 150
-}
+})
 
 // LIVE stats (what's actually active)
 const liveStats = reactive({ ...baseStats })
@@ -285,9 +354,10 @@ const switchToTest = () => {
     resetTestStats()
 }
 
-// Simulate event (applies to active stats)
+// Simulate event (applies to TEST stats only, never live)
 const simulateEvent = (eventType) => {
-    const stats = activeStats.value
+    // Always use testStats for simulations - never affect live!
+    const stats = testStats
 
     switch (eventType) {
         case 'follow':
@@ -320,6 +390,36 @@ const onMonsterDefeated = (wave) => {
     currentWave.value = wave
 }
 
+// Handle buffs from SignalR (real Twitch events)
+const onBuffApplied = (buff) => {
+    console.log('Buff received from SignalR:', buff)
+
+    // Apply buff to LIVE stats (not test stats)
+    switch (buff.type) {
+        case 'atk':
+            liveStats.atk += buff.value
+            break
+        case 'spd':
+            liveStats.spd = Math.min(10, liveStats.spd + buff.value)
+            break
+        case 'crit_chance':
+            liveStats.critChance = Math.min(100, liveStats.critChance + buff.value)
+            break
+        case 'crit_damage':
+            liveStats.critDamage += buff.value
+            break
+    }
+
+    // Update event counters
+    if (buff.eventType === 'follow') {
+        eventCounts.follows++
+    } else if (buff.eventType === 'subscription') {
+        eventCounts.subs++
+    } else if (buff.eventType === 'bits') {
+        eventCounts.bits += buff.value * 10 // Approximate bits from crit bonus
+    }
+}
+
 const resetTestStats = () => {
     testStats.atk = baseStats.atk
     testStats.spd = baseStats.spd
@@ -333,11 +433,25 @@ const saveConfig = () => {
 }
 
 const openShop = () => {
-    alert('🛒 Shop coming soon!')
+    router.push('/shop')
 }
 
-const exportOBS = () => {
-    alert('📤 Export for OBS coming soon!\n\nThis will generate a Browser Source URL that you can add to OBS to display the overlay on your stream.')
+const exportOBS = async () => {
+    if (!twitchId.value) {
+        alert('⚠️ Please login with Twitch first to get your overlay URL.')
+        return
+    }
+
+    const baseUrl = window.location.origin
+    const overlayUrl = `${baseUrl}/overlay?id=${twitchId.value}&layout=${layoutMode.value}`
+
+    try {
+        await navigator.clipboard.writeText(overlayUrl)
+        alert(`✅ URL copied to clipboard!\n\n${overlayUrl}\n\nAdd this as a Browser Source in OBS.\nRecommended size: 1920x1080`)
+    } catch (err) {
+        // Fallback for older browsers
+        prompt('📋 Copy this URL to use in OBS:', overlayUrl)
+    }
 }
 
 const confirmReset = () => {

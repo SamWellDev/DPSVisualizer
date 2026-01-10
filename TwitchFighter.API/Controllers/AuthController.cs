@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TwitchFighter.API.Data;
 using TwitchFighter.API.Models;
+using TwitchFighter.API.Services;
 using TwitchLib.Api;
 
 namespace TwitchFighter.API.Controllers;
@@ -13,12 +14,18 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IConfiguration _config;
     private readonly ILogger<AuthController> _logger;
+    private readonly TwitchEventSubService _eventSubService;
     
-    public AuthController(AppDbContext context, IConfiguration config, ILogger<AuthController> logger)
+    public AuthController(
+        AppDbContext context, 
+        IConfiguration config, 
+        ILogger<AuthController> logger,
+        TwitchEventSubService eventSubService)
     {
         _context = context;
         _config = config;
         _logger = logger;
+        _eventSubService = eventSubService;
     }
     
     /// <summary>
@@ -29,7 +36,7 @@ public class AuthController : ControllerBase
     {
         var clientId = _config["Twitch:ClientId"];
         var redirectUri = _config["Twitch:RedirectUri"];
-        var scopes = "user:read:email channel:read:subscriptions bits:read";
+        var scopes = "user:read:email channel:read:subscriptions bits:read moderator:read:followers";
         
         var authUrl = $"https://id.twitch.tv/oauth2/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(redirectUri!)}&response_type=code&scope={Uri.EscapeDataString(scopes)}";
         
@@ -67,8 +74,10 @@ public class AuthController : ControllerBase
             
             if (!tokenResponse.IsSuccessStatusCode)
             {
-                _logger.LogError("Failed to exchange code for token");
-                return BadRequest("Failed to authenticate with Twitch");
+                var errorBody = await tokenResponse.Content.ReadAsStringAsync();
+                _logger.LogError("Failed to exchange code for token. Status: {Status}, Body: {Body}", 
+                    tokenResponse.StatusCode, errorBody);
+                return BadRequest($"Failed to authenticate with Twitch: {errorBody}");
             }
             
             var tokenData = await tokenResponse.Content.ReadFromJsonAsync<TwitchTokenResponse>();
@@ -132,8 +141,12 @@ public class AuthController : ControllerBase
             
             await _context.SaveChangesAsync();
             
+            // Set broadcaster ID for EventSub subscriptions
+            await _eventSubService.SetBroadcasterId(twitchUser.Id);
+            _logger.LogInformation("Broadcaster ID set for EventSub: {BroadcasterId}", twitchUser.Id);
+            
             // Redirect back to frontend with user data
-            var frontendUrl = $"http://localhost:5173/dashboard?token={tokenData.AccessToken}&userId={user.Id}";
+            var frontendUrl = $"http://localhost:3000/dashboard?token={tokenData.AccessToken}&userId={user.Id}&twitchId={twitchUser.Id}";
             return Redirect(frontendUrl);
         }
         catch (Exception ex)
@@ -179,9 +192,18 @@ public class AuthController : ControllerBase
 
 public class TwitchTokenResponse
 {
+    [System.Text.Json.Serialization.JsonPropertyName("access_token")]
     public string AccessToken { get; set; } = string.Empty;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("refresh_token")]
     public string RefreshToken { get; set; } = string.Empty;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
     public int ExpiresIn { get; set; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("scope")]
     public string[] Scope { get; set; } = [];
+    
+    [System.Text.Json.Serialization.JsonPropertyName("token_type")]
     public string TokenType { get; set; } = string.Empty;
 }

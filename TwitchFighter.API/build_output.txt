@@ -1,0 +1,9 @@
+﻿  Determinando os projetos a serem restaurados...
+  Todos os projetos est├úo atualizados para restaura├º├úo.
+  TwitchFighter.API -> C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\bin\Debug\net9.0\TwitchFighter.API.dll
+
+Compila├º├úo com ├¬xito.
+    0 Aviso(s)
+    0 Erro(s)
+
+Tempo Decorrido 00:00:01.17

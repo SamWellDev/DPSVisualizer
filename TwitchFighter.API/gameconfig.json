@@ -1,0 +1,47 @@
+{
+    "Buffs": {
+        "Follow": {
+            "Type": "crit_chance",
+            "Value": 2
+        },
+        "SubTier1": {
+            "Type": "spd",
+            "Value": 0.5
+        },
+        "SubTier2": {
+            "Type": "spd",
+            "Value": 1.0
+        },
+        "SubTier3": {
+            "Type": "spd",
+            "Value": 1.5,
+            "BonusAtk": 10
+        },
+        "BitsPerHundred": {
+            "Type": "crit_damage",
+            "Value": 10
+        }
+    },
+    "Monster": {
+        "BaseHp": 618,
+        "HpMultiplierPerWave": 1.5,
+        "Names": [
+            "Slime",
+            "Goblin",
+            "Orc",
+            "Troll",
+            "Demon",
+            "Dragon",
+            "Titan",
+            "Ancient One"
+        ]
+    },
+    "Hero": {
+        "BaseAtk": 10,
+        "BaseSpd": 1.0,
+        "BaseCritChance": 5,
+        "BaseCritDamage": 150,
+        "MaxSpd": 10,
+        "MaxCritChance": 100
+    }
+}

@@ -57,29 +57,24 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// Twitch OAuth configuration
-const TWITCH_CLIENT_ID = '' // TODO: Add your Twitch Client ID
-const REDIRECT_URI = window.location.origin + '/dashboard'
-const SCOPES = ['user:read:email', 'channel:read:subscriptions', 'bits:read', 'channel:read:redemptions']
+// Backend auth URL
+const BACKEND_AUTH_URL = 'http://localhost:5041/api/auth/login'
+
+// Check if already logged in
+onMounted(() => {
+    const twitchId = localStorage.getItem('twitch_id')
+    if (twitchId) {
+        router.push('/dashboard')
+    }
+})
 
 const loginWithTwitch = () => {
-    if (!TWITCH_CLIENT_ID) {
-        // For demo/dev: just redirect to dashboard
-        console.warn('Twitch Client ID not configured. Redirecting to dashboard for demo.')
-        router.push('/dashboard')
-        return
-    }
-
-    const authUrl = new URL('https://id.twitch.tv/oauth2/authorize')
-    authUrl.searchParams.set('client_id', TWITCH_CLIENT_ID)
-    authUrl.searchParams.set('redirect_uri', REDIRECT_URI)
-    authUrl.searchParams.set('response_type', 'token')
-    authUrl.searchParams.set('scope', SCOPES.join(' '))
-
-    window.location.href = authUrl.toString()
+    // Redirect to backend which handles OAuth
+    window.location.href = BACKEND_AUTH_URL
 }
 </script>

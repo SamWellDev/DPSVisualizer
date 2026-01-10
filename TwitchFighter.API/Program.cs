@@ -20,7 +20,9 @@ builder.Services.AddSignalR();
 
 // Twitch EventSub
 builder.Services.AddTwitchLibEventSubWebsockets();
-builder.Services.AddHostedService<TwitchEventSubService>();
+builder.Services.AddSingleton<GameConfigService>();
+builder.Services.AddSingleton<TwitchEventSubService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TwitchEventSubService>());
 
 
 

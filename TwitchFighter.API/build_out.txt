@@ -1,0 +1,13 @@
+﻿  Determinando os projetos a serem restaurados...
+  Todos os projetos estão atualizados para restauração.
+C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\Services\TwitchEventSubService.cs(79,61): error CS0246: O nome do tipo ou do namespace "WebsocketConnectedArgs" não pode ser encontrado (está faltando uma diretiva using ou uma referência de assembly?) [C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\TwitchFighter.API.csproj]
+C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\Services\TwitchEventSubService.cs(151,56): error CS0246: O nome do tipo ou do namespace "ErrorOccurredArgs" não pode ser encontrado (está faltando uma diretiva using ou uma referência de assembly?) [C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\TwitchFighter.API.csproj]
+
+FALHA da compilação.
+
+C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\Services\TwitchEventSubService.cs(79,61): error CS0246: O nome do tipo ou do namespace "WebsocketConnectedArgs" não pode ser encontrado (está faltando uma diretiva using ou uma referência de assembly?) [C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\TwitchFighter.API.csproj]
+C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\Services\TwitchEventSubService.cs(151,56): error CS0246: O nome do tipo ou do namespace "ErrorOccurredArgs" não pode ser encontrado (está faltando uma diretiva using ou uma referência de assembly?) [C:\Users\Gamer\Documents\Projetos\DPSVisualizer\TwitchFighter.API\TwitchFighter.API.csproj]
+    0 Aviso(s)
+    2 Erro(s)
+
+Tempo Decorrido 00:00:01.14

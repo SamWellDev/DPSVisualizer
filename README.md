@@ -58,6 +58,7 @@ cd TwitchFighter.API
 dotnet ef database update
 dotnet run
 ```
+> API available at `http://localhost:5041`
 
 ## 📁 Project Structure
 
@@ -87,6 +88,67 @@ DPSVisualizer/
 | POST | `/api/stats/{userId}/buff` | Apply event buff |
 | GET | `/api/rankings/global` | Monthly leaderboard |
 
+## 🎮 User Journey
+
+### Complete Flow
+
+```
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                                                                          │
+  │   1. LOGIN          2. DASHBOARD           3. LIVE              4. OBS   │
+  │                                                                          │
+  │   ┌─────────┐       ┌─────────────────┐    ┌────────────┐    ┌────────┐  │
+  │   │ Login   │       │ 🔴 OFFLINE      │    │ 🟢 LIVE    │    │ Copy   │  │
+  │   │  with   │──────▶│                 │───▶│            │───▶│  URL   │  │
+  │   │ Twitch  │       │ [Test Follow]   │    │ Real       │    │  for   │  │
+  │   └─────────┘       │ [Test Sub]      │    │ Twitch     │    │  OBS   │  │
+  │                     │ [Test Bits]     │    │ Events     │    └────────┘  │
+  │                     └─────────────────┘    └────────────┘                │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Step by Step
+
+| Step | What Happens | Details |
+|------|--------------|----------|
+| **1. Login** | User clicks "Login with Twitch" | OAuth authenticates and saves user to database |
+| **2. Dashboard** | Panel shows stream status | 🔴 OFFLINE or 🟢 LIVE |
+| **3. OFFLINE** | Test mode | Grayscale visualization, test buttons work |
+| **4. LIVE** | Live mode | Real Twitch events apply buffs |
+| **5. Test** | Buttons simulate events | Follow, Sub, Bits → see buffs working |
+| **6. Export** | Copy overlay URL | Add as Browser Source in OBS |
+
+### Application Routes
+
+| Route | Description |
+|-------|-----------|
+| `/` | Landing page with "Login with Twitch" button |
+| `/dashboard` | Control panel (after login) |
+| `/overlay?id=xxx` | Pure visualization for OBS (transparent, no UI) |
+
+### How Does it Detect if Stream is LIVE?
+
+The backend queries the Twitch API periodically:
+
+```javascript
+// GET https://api.twitch.tv/helix/streams?user_id=BROADCASTER_ID
+// If data.length > 0 → LIVE
+// If data.length == 0 → OFFLINE
+```
+
+### How Does it Work in OBS?
+
+1. In Dashboard, click **"Copy Overlay URL"**
+2. In OBS, add a **Browser Source**
+3. Paste the URL: `http://localhost:3000/overlay?id=YOUR_ID`
+4. Configure size (recommended: 1920x1080)
+5. Enable **"Shutdown source when not visible"**
+
+The overlay page has a transparent background, so only the hero, monster and effects are visible!
+
+---
+
 ## 🔮 Roadmap
 
 ### ✅ Completed
@@ -97,12 +159,25 @@ DPSVisualizer/
 - [x] C# Backend with PostgreSQL
 - [x] REST API (Auth, User, Progress, Stats, Rankings)
 - [x] SignalR Hub
+- [x] Twitch OAuth flow (login + callback)
+- [x] TwitchEventSubService with WebSocket connection
+- [x] Broadcaster ID auto-set on login
+- [x] SignalR frontend integration
+- [x] Login frontend ↔ backend connected
+- [x] twitchId saved in localStorage and passed to SignalR
+- [x] Handler @buffApplied for real stats
+- [x] `gameconfig.json` - editable file for balancing
+- [x] Axios installed + `src/services/api.js`
+- [x] Dashboard loads config from backend
+- [x] Isolated Test mode with immortal "Dummy" monster
+- [x] Separate stats between test and live
 
-### 🚧 Next Steps
-- [ ] Twitch EventSub integration
-- [ ] Connect Vue to SignalR
-- [ ] Sound effects
+### 📋 Next Steps
+- [x] `/overlay?id=xxx` page for OBS
+- [x] Implement `exportOBS()` to copy URL
+- [ ] Auto-detect LIVE stream status via Twitch API
 - [ ] Multiple monster sprites
+- [ ] Viewer leaderboard
 
 ## 📄 License
 
