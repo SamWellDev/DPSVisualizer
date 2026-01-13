@@ -128,10 +128,12 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { userConfigApi } from '../services/api'
 
-// Load saved skin from localStorage
-const selectedSkin = ref(localStorage.getItem('hero_skin') || 'hero_1')
+// Skin selection
+const selectedSkin = ref('hero_1')
+const twitchId = localStorage.getItem('twitch_id') // Only use localStorage for auth
 
 const skinNames = {
     'hero_1': 'Default',
@@ -149,9 +151,35 @@ const currentSkinPreview = computed(() => {
     return `/sprites/${selectedSkin.value}.png`
 })
 
-const selectSkin = (skin) => {
+// Load skin from backend on mount
+onMounted(async () => {
+    if (twitchId) {
+        try {
+            const res = await userConfigApi.get(twitchId)
+            selectedSkin.value = res.data.heroSkin || 'hero_1'
+            console.log('Skin loaded from backend:', selectedSkin.value)
+        } catch (err) {
+            console.warn('Failed to load skin from backend:', err.message)
+        }
+    }
+})
+
+// Save skin to backend when selected
+const selectSkin = async (skin) => {
     selectedSkin.value = skin
-    localStorage.setItem('hero_skin', skin)
-    console.log('Skin selected:', skin)
+
+    if (twitchId) {
+        try {
+            // Get current config and update just the skin
+            const currentConfig = await userConfigApi.get(twitchId)
+            await userConfigApi.save(twitchId, {
+                ...currentConfig.data,
+                heroSkin: skin
+            })
+            console.log('Skin saved to backend:', skin)
+        } catch (err) {
+            console.error('Failed to save skin:', err.message)
+        }
+    }
 }
 </script>

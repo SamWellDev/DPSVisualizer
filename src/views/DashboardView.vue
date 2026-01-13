@@ -11,11 +11,53 @@
                 <!-- Visualization Area (2/3) -->
                 <div class="lg:col-span-2">
                     <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden" style="height: 500px;">
-                        <VisualizationArea :key="activeTab" :heroStats="activeStats" :bestWave="bestWave"
+                        <!-- Config Tab: Show status panel instead of game -->
+                        <div v-if="activeTab === 'config'"
+                            class="h-full flex flex-col items-center justify-center p-8 text-center">
+                            <div class="text-6xl mb-4">🎮</div>
+                            <h2 class="text-2xl font-bold text-white mb-2">Game Status</h2>
+                            <p class="text-gray-400 mb-6">The real game runs in the Overlay (OBS)</p>
+
+                            <div class="grid grid-cols-2 gap-4 w-full max-w-md">
+                                <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                                    <div class="text-gray-400 text-sm">Current Wave</div>
+                                    <div class="text-3xl font-bold text-cyan-400">{{ currentWave }}</div>
+                                </div>
+                                <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                                    <div class="text-gray-400 text-sm">Best Wave</div>
+                                    <div class="text-3xl font-bold text-yellow-400">{{ bestWave }}</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 grid grid-cols-4 gap-3 w-full max-w-lg">
+                                <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                                    <div class="text-cyan-400 text-xs">ATK</div>
+                                    <div class="text-xl font-bold text-white">{{ liveStats.atk }}</div>
+                                </div>
+                                <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                                    <div class="text-green-400 text-xs">SPD</div>
+                                    <div class="text-xl font-bold text-white">{{ liveStats.spd.toFixed(1) }}</div>
+                                </div>
+                                <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                                    <div class="text-yellow-400 text-xs">CRIT%</div>
+                                    <div class="text-xl font-bold text-white">{{ liveStats.critChance }}%</div>
+                                </div>
+                                <div class="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                                    <div class="text-orange-400 text-xs">CRIT DMG</div>
+                                    <div class="text-xl font-bold text-white">{{ liveStats.critDamage }}%</div>
+                                </div>
+                            </div>
+
+                            <p class="mt-6 text-gray-500 text-sm flex items-center gap-2">
+                                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                Auto-sync every 10s
+                            </p>
+                        </div>
+
+                        <!-- Test Tab: Show game with testMode (Dummy) -->
+                        <VisualizationArea v-else :key="activeTab" :heroStats="testStats" :bestWave="bestWave"
                             :dps="calculatedDPS" :layoutMode="layoutMode" :showDamageNumbers="showDamageNumbers"
-                            :isLive="activeTab === 'test' || isLive"
-                            :twitchId="activeTab === 'config' ? twitchId : null" :testMode="activeTab === 'test'"
-                            @monsterDefeated="onMonsterDefeated" @buffApplied="onBuffApplied" />
+                            :showHUD="showHUD" :isLive="true" :testMode="true" :monsterConfig="monsterConfig" />
                     </div>
 
                     <!-- Stats Row below Visualization -->
@@ -91,16 +133,29 @@
                             </label>
                         </div>
 
-                        <!-- Live Toggle Button -->
-                        <button @click="toggleLive" :class="[
-                            'w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 mb-4',
-                            isLive
-                                ? 'bg-red-600 hover:bg-red-500 text-white'
-                                : 'bg-green-600 hover:bg-green-500 text-white'
-                        ]">
-                            <span v-if="isLive" class="w-3 h-3 bg-white rounded-full animate-pulse"></span>
-                            {{ isLive ? '⏹️ Manual Shutdown' : '▶️ Go Live' }}
-                        </button>
+                        <!-- Show HUD Toggle -->
+                        <div class="bg-gray-900 rounded-lg p-4 border border-gray-700 mb-4">
+                            <label class="flex items-center justify-between cursor-pointer">
+                                <span class="text-white font-medium">📊 Show HUD</span>
+                                <input type="checkbox" v-model="showHUD"
+                                    class="w-5 h-5 rounded bg-gray-800 border-gray-600 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900" />
+                            </label>
+                            <p class="text-xs text-gray-500 mt-2">Stats, wave info, DPS display</p>
+                        </div>
+
+                        <!-- Stream Status Indicator -->
+                        <div class="bg-gray-900 rounded-lg p-4 border border-gray-700 mb-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-white font-medium">📡 Stream Status</span>
+                                <div class="flex items-center gap-2">
+                                    <span v-if="isLive" class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                    <span v-else class="w-2 h-2 bg-gray-500 rounded-full"></span>
+                                    <span :class="isLive ? 'text-red-400' : 'text-gray-400'">{{ isLive ? 'LIVE' :
+                                        'Offline' }}</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">Auto-detected from Twitch every 30s</p>
+                        </div>
 
                         <!-- Save Button -->
                         <button @click="saveConfig"
@@ -179,6 +234,22 @@
             <div class="mt-6">
                 <Achievements :achievements="achievements" />
             </div>
+
+            <!-- Support Banner -->
+            <div class="mt-6 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl p-6 text-center">
+                <h3 class="text-xl font-bold text-white mb-2">💜 Enjoying Twitch Fighter?</h3>
+                <p class="text-purple-100 mb-4">Help keep this project alive and growing!</p>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <a href="#"
+                        class="inline-flex items-center gap-2 px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold rounded-lg transition-colors">
+                        ☕ Buy me a coffee
+                    </a>
+                    <a href="#"
+                        class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-lg transition-colors">
+                        💬 Chat on Discord
+                    </a>
+                </div>
+            </div>
         </main>
 
         <!-- Footer -->
@@ -212,7 +283,7 @@
 </template>
 
 <script setup>
-import { reactive, computed, ref, onMounted } from 'vue'
+import { reactive, computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import VisualizationArea from '../components/VisualizationArea.vue'
 import AppHeader from '../components/AppHeader.vue'
@@ -222,10 +293,14 @@ import MonthlyProgress from '../components/MonthlyProgress.vue'
 import EventCounters from '../components/EventCounters.vue'
 import GlobalRankings from '../components/GlobalRankings.vue'
 import Achievements from '../components/Achievements.vue'
-import { configApi } from '../services/api'
+import { configApi, userApi, statsApi, rankingsApi, streamApi, userConfigApi } from '../services/api'
+import { useSignalR } from '../composables/signalr'
 
 const router = useRouter()
 const route = useRoute()
+
+// SignalR for broadcasting game state to overlay
+const { connect: connectSignalR, broadcastGameState, broadcastDamage, broadcastBuff, disconnect: disconnectSignalR } = useSignalR()
 
 // User authentication state
 const twitchId = ref(localStorage.getItem('twitch_id') || null)
@@ -236,8 +311,10 @@ const currentWave = ref(1)
 const activeTab = ref('config')
 const layoutMode = ref('full') // 'full' or 'monster'
 const showDamageNumbers = ref(true)
+const showHUD = ref(true) // Show stats, wave info, DPS panels
 const showResetModal = ref(false)
-const isLive = ref(true) // Live/Offline toggle
+const isLive = ref(false) // Will be auto-detected from Twitch
+const streamStatusInterval = ref(null)
 
 // Handle auth callback params on mount
 onMounted(async () => {
@@ -289,14 +366,100 @@ onMounted(async () => {
             Object.assign(testStats, baseStats)
         }
 
+        // Update monster config
+        if (data.Monster) {
+            monsterConfig.baseHp = data.Monster.BaseHp || 50
+            monsterConfig.hpMultiplier = data.Monster.HpMultiplierPerWave || 1.5
+        }
+
         console.log('Game config loaded:', data)
     } catch (err) {
         console.warn('Failed to load game config, using defaults:', err.message)
     }
+
+    // Load user progress and stats from backend
+    if (userId.value) {
+        try {
+            // Load progress (wave, bestWave)
+            const progressRes = await userApi.getProgress(userId.value)
+            currentWave.value = progressRes.data.currentWave || 1
+            console.log('Progress loaded:', progressRes.data)
+        } catch (err) {
+            console.warn('Failed to load progress (new user?):', err.message)
+        }
+
+        try {
+            // Load stats (ATK, SPD, Crit)
+            const statsRes = await statsApi.getStats(userId.value)
+            liveStats.atk = statsRes.data.atk || baseStats.atk
+            liveStats.spd = Number(statsRes.data.spd) || baseStats.spd
+            liveStats.critChance = statsRes.data.critChance || baseStats.critChance
+            liveStats.critDamage = statsRes.data.critDamage || baseStats.critDamage
+
+            // Load event counters
+            if (statsRes.data.counters) {
+                eventCounts.follows = statsRes.data.counters.follows || 0
+                eventCounts.subs = statsRes.data.counters.subs || 0
+                eventCounts.bits = statsRes.data.counters.bits || 0
+                eventCounts.donations = statsRes.data.counters.donations || 0
+            }
+            console.log('Stats loaded:', statsRes.data)
+        } catch (err) {
+            console.warn('Failed to load stats (new user?):', err.message)
+        }
+    }
+
+    // Start stream status polling
+    if (twitchId.value) {
+        checkStreamStatus()
+        streamStatusInterval.value = setInterval(checkStreamStatus, 30000) // Check every 30 seconds
+    }
+
+    // Start auto-sync from backend (every 10 seconds)
+    if (userId.value) {
+        setInterval(syncFromBackend, 10000)
+    }
 })
 
-const toggleLive = () => {
-    isLive.value = !isLive.value
+// Check if Twitch stream is live
+const checkStreamStatus = async () => {
+    if (!twitchId.value) return
+
+    try {
+        const res = await streamApi.getStatus(twitchId.value)
+        isLive.value = res.data.isLive
+        console.log('Stream status:', res.data.isLive ? 'LIVE' : 'OFFLINE')
+    } catch (err) {
+        console.warn('Failed to check stream status:', err.message)
+    }
+}
+
+// Cleanup on unmount
+onUnmounted(() => {
+    if (streamStatusInterval.value) {
+        clearInterval(streamStatusInterval.value)
+    }
+})
+
+// Save display config to backend (called when user clicks Save button)
+const saveConfig = async () => {
+    if (!twitchId.value) {
+        alert('⚠️ Please login with Twitch first.')
+        return
+    }
+
+    try {
+        await userConfigApi.save(twitchId.value, {
+            layoutMode: layoutMode.value,
+            showDamageNumbers: showDamageNumbers.value,
+            showHUD: showHUD.value
+        })
+        console.log('Display config saved to backend')
+        alert('✅ Configuration saved! OBS overlay will update within 10 seconds.')
+    } catch (err) {
+        console.error('Failed to save display config:', err.message)
+        alert('❌ Failed to save configuration')
+    }
 }
 
 // Buff configuration (loaded from backend)
@@ -313,6 +476,7 @@ const buffConfig = reactive({
 // Game config loaded from backend
 const gameConfig = ref(null)
 const configLoaded = ref(false)
+const monsterConfig = reactive({ baseHp: 50, hpMultiplier: 1.5 })
 
 // Event counters (for display)
 const eventCounts = reactive({
@@ -386,12 +550,37 @@ const simulateEvent = (eventType) => {
     }
 }
 
-const onMonsterDefeated = (wave) => {
-    currentWave.value = wave
+// Sync wave and stats from backend (auto-called every 10s)
+const syncFromBackend = async () => {
+    if (!userId.value) return
+
+    try {
+        // Load progress (wave, bestWave)
+        const progressRes = await userApi.getProgress(userId.value)
+        currentWave.value = progressRes.data.currentWave || 1
+
+        // Load stats (ATK, SPD, Crit)
+        const statsRes = await statsApi.getStats(userId.value)
+        liveStats.atk = statsRes.data.atk || baseStats.atk
+        liveStats.spd = Number(statsRes.data.spd) || baseStats.spd
+        liveStats.critChance = statsRes.data.critChance || baseStats.critChance
+        liveStats.critDamage = statsRes.data.critDamage || baseStats.critDamage
+
+        // Load event counters
+        if (statsRes.data.counters) {
+            eventCounts.follows = statsRes.data.counters.follows || 0
+            eventCounts.subs = statsRes.data.counters.subs || 0
+            eventCounts.bits = statsRes.data.counters.bits || 0
+            eventCounts.donations = statsRes.data.counters.donations || 0
+        }
+    } catch (err) {
+        // Silent fail for auto-sync
+        console.warn('Auto-sync failed:', err.message)
+    }
 }
 
 // Handle buffs from SignalR (real Twitch events)
-const onBuffApplied = (buff) => {
+const onBuffApplied = async (buff) => {
     console.log('Buff received from SignalR:', buff)
 
     // Apply buff to LIVE stats (not test stats)
@@ -418,6 +607,20 @@ const onBuffApplied = (buff) => {
     } else if (buff.eventType === 'bits') {
         eventCounts.bits += buff.value * 10 // Approximate bits from crit bonus
     }
+
+    // Persist buff to backend
+    if (userId.value) {
+        try {
+            await statsApi.applyBuff(userId.value, {
+                eventType: buff.eventType,
+                amount: buff.amount,
+                username: buff.userName
+            })
+            console.log('Buff persisted to backend')
+        } catch (err) {
+            console.error('Failed to persist buff:', err.message)
+        }
+    }
 }
 
 const resetTestStats = () => {
@@ -427,10 +630,7 @@ const resetTestStats = () => {
     testStats.critDamage = baseStats.critDamage
 }
 
-const saveConfig = () => {
-    localStorage.setItem('buffConfig', JSON.stringify(buffConfig))
-    alert('✅ Configuration saved!')
-}
+// Note: saveConfig is defined above (line ~371) and saves display config to backend
 
 const openShop = () => {
     router.push('/shop')
@@ -454,7 +654,7 @@ const exportOBS = async () => {
     }
 }
 
-const confirmReset = () => {
+const confirmReset = async () => {
     // Reset wave
     currentWave.value = 1
 
@@ -469,6 +669,16 @@ const confirmReset = () => {
     eventCounts.subs = 0
     eventCounts.donations = 0
     eventCounts.bits = 0
+
+    // Reset on backend
+    if (userId.value) {
+        try {
+            await statsApi.resetMonthly(userId.value)
+            console.log('Stats reset on backend')
+        } catch (err) {
+            console.error('Failed to reset on backend:', err.message)
+        }
+    }
 
     // Close modal
     showResetModal.value = false

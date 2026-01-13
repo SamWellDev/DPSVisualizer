@@ -23,7 +23,7 @@
         }
     },
     "Monster": {
-        "BaseHp": 618,
+        "BaseHp": 50,
         "HpMultiplierPerWave": 1.5,
         "Names": [
             "Slime",

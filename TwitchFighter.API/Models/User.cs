@@ -12,8 +12,15 @@ public class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
     
+    // Display config (synced to overlay)
+    public string LayoutMode { get; set; } = "full";
+    public bool ShowDamageNumbers { get; set; } = true;
+    public bool ShowHUD { get; set; } = true;
+    public string HeroSkin { get; set; } = "hero_1";
+    
     // Navigation
     public Progress? Progress { get; set; }
     public Stats? Stats { get; set; }
     public ICollection<UserAchievement> Achievements { get; set; } = [];
 }
+

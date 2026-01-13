@@ -47,19 +47,32 @@ export const authApi = {
 
 export const userApi = {
     getUser: (id) => api.get(`/user/${id}`),
+    getUserByTwitchId: (twitchId) => api.get(`/user/twitch/${twitchId}`), // For overlay - uses Twitch ID lookup
     getProgress: (userId) => api.get(`/progress/${userId}`),
     updateWave: (userId, wave) => api.post(`/progress/${userId}/wave`, { wave }),
-    recordDefeat: (userId) => api.post(`/progress/${userId}/defeat`)
+    recordDefeat: (userId) => api.post(`/progress/${userId}/defeat`),
+    saveMonsterState: (userId, monsterHp, lastModified = null) =>
+        api.post(`/progress/${userId}/state`, { monsterHp, lastModified })
 };
 
 export const statsApi = {
     getStats: (userId) => api.get(`/stats/${userId}`),
-    applyBuff: (userId, buff) => api.post(`/stats/${userId}/buff`, buff)
+    applyBuff: (userId, buff) => api.post(`/stats/${userId}/buff`, buff),
+    resetMonthly: (userId) => api.post(`/stats/${userId}/reset-monthly`)
 };
 
 export const rankingsApi = {
     getGlobal: () => api.get('/rankings/global'),
     getUserRank: (userId) => api.get(`/rankings/rank/${userId}`)
+};
+
+export const streamApi = {
+    getStatus: (twitchId) => api.get(`/stream/status/${twitchId}`)
+};
+
+export const userConfigApi = {
+    get: (twitchId) => api.get(`/userconfig/${twitchId}`),
+    save: (twitchId, config) => api.post(`/userconfig/${twitchId}`, config)
 };
 
 export default api;

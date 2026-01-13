@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TwitchFighter.API.Data;
+using TwitchFighter.API.Services;
 
 namespace TwitchFighter.API.Controllers;
 
@@ -10,6 +11,7 @@ public class StatsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ILogger<StatsController> _logger;
+    private readonly GameConfigService _configService;
     
     // Buff values (same as frontend)
     private static readonly Dictionary<string, object> BuffConfig = new()
@@ -23,10 +25,11 @@ public class StatsController : ControllerBase
         ["bits"] = new { critDamage = 0.01m } // per bit
     };
     
-    public StatsController(AppDbContext context, ILogger<StatsController> logger)
+    public StatsController(AppDbContext context, ILogger<StatsController> logger, GameConfigService configService)
     {
         _context = context;
         _logger = logger;
+        _configService = configService;
     }
     
     /// <summary>
@@ -161,9 +164,20 @@ public class StatsController : ControllerBase
         stats.MonthDonations = 0;
         stats.UpdatedAt = DateTime.UtcNow;
         
+        // Also reset progress (wave) to 1 and monster HP to base (50)
+        var progress = await _context.Progresses.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (progress != null)
+        {
+            progress.CurrentWave = 1;
+            progress.MonsterCurrentHp = _configService.Config.Monster.BaseHp;
+            progress.UpdatedAt = DateTime.UtcNow;
+        }
+        
         await _context.SaveChangesAsync();
         
-        return Ok(new { message = "Stats reset for new month" });
+        _logger.LogInformation("Reset stats and wave for user {UserId}", userId);
+        
+        return Ok(new { message = "Stats and progress reset for new month" });
     }
 }
 

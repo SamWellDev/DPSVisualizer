@@ -19,7 +19,7 @@
     </div>
 
     <!-- Stats Display (Full Layout Only) -->
-    <div v-if="layoutMode === 'full' && isLive"
+    <div v-if="layoutMode === 'full' && isLive && showHUD"
       class="absolute bottom-4 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
       <div class="font-mono flex flex-wrap gap-3">
         <div>
@@ -42,7 +42,7 @@
     </div>
 
     <!-- Monster HP Bar (Full Layout Only - monster mode draws on canvas) -->
-    <div v-if="layoutMode === 'full' && isLive"
+    <div v-if="layoutMode === 'full' && isLive && showHUD"
       class="absolute top-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white min-w-[200px]">
       <div class="flex justify-between mb-1">
         <span class="text-red-400 font-bold">{{ monster.name }}</span>
@@ -58,14 +58,14 @@
     </div>
 
     <!-- Best Wave Display (Full Layout Only) -->
-    <div v-if="layoutMode === 'full' && isLive"
+    <div v-if="layoutMode === 'full' && isLive && showHUD"
       class="absolute top-14 left-4 bg-black bg-opacity-70 rounded-lg p-3 text-sm text-white">
       <div class="text-yellow-400 text-xs uppercase tracking-wide">🏆 Best Wave</div>
       <div class="text-2xl font-bold text-center">{{ bestWave }}</div>
     </div>
 
     <!-- DPS Display (Full Layout Only) -->
-    <div v-if="layoutMode === 'full' && isLive"
+    <div v-if="layoutMode === 'full' && isLive && showHUD"
       class="absolute bottom-4 right-4 bg-black bg-opacity-70 rounded-lg p-3 text-white">
       <div class="text-purple-400 text-xs uppercase tracking-wide">⚡ DPS</div>
       <div class="text-2xl font-bold text-center font-mono">{{ dps }}</div>
@@ -110,13 +110,29 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  showHUD: {
+    type: Boolean,
+    default: true
+  },
   heroSkin: {
     type: String,
     default: null // If null, will read from localStorage
+  },
+  initialWave: {
+    type: Number,
+    default: 1
+  },
+  initialMonsterHp: {
+    type: Number,
+    default: 0 // 0 = spawn with full HP
+  },
+  monsterConfig: {
+    type: Object,
+    default: () => ({ baseHp: 50, hpMultiplier: 1.5 })
   }
 });
 
-const emit = defineEmits(['monsterDefeated', 'twitchEvent', 'buffApplied']);
+const emit = defineEmits(['monsterDefeated', 'twitchEvent', 'buffApplied', 'gameStateUpdate', 'damageDealt', 'stateChanged']);
 
 // SignalR connection
 const { connect, onTwitchEvent, isConnected, disconnect } = useSignalR();
@@ -154,17 +170,18 @@ const hero = reactive({
 // Estado do monstro
 const monster = reactive({
   name: "Slime",
-  x: 76,
+  x: 55,           // Moved closer to hero (was 76) to match dashboard timing
   y: 55,
   size: 300,
-  maxHp: 618,      // 10.3 DPS × 60 seconds = 618 HP (1 minute to kill)
-  currentHp: 618,
+  maxHp: 50,      // REDUCED FOR TESTING - was 618
+  currentHp: 50,
   wave: 1,
   hitFlash: 0,
   shakeOffset: 0,
   image: null,
   loaded: false,
   dying: false,
+  spawning: false,  // Guard flag to prevent multiple spawnNextMonster calls
   deathScale: 1,
   deathOpacity: 1
 });
@@ -176,8 +193,60 @@ const initMonster = () => {
     monster.maxHp = Infinity;
     monster.currentHp = Infinity;
     monster.wave = 0;
+  } else if (props.initialWave >= 1) {
+    // Sync with external wave (from backend)
+    monster.wave = props.initialWave;
+    monster.maxHp = Math.floor(props.monsterConfig.baseHp * Math.pow(props.monsterConfig.hpMultiplier, props.initialWave - 1));
+
+    // Restore saved HP if available, otherwise full HP
+    if (props.initialMonsterHp > 0 && props.initialMonsterHp <= monster.maxHp) {
+      monster.currentHp = props.initialMonsterHp;
+      console.log(`Restored monster state: Wave ${props.initialWave}, HP ${props.initialMonsterHp}/${monster.maxHp}`);
+    } else {
+      monster.currentHp = monster.maxHp;
+    }
+    monster.name = getMonsterName(props.initialWave);
+  }
+
+  // Emit state every 30 seconds for persistence
+  if (!props.testMode) {
+    setInterval(() => {
+      emit('stateChanged', {
+        wave: monster.wave,
+        monsterHp: Math.round(monster.currentHp)
+      });
+    }, 30000);
   }
 };
+
+// Watch for external wave changes - sync on RESET or FIRST LOAD from backend
+watch(() => props.initialWave, (newWave, oldWave) => {
+  if (props.testMode) return;
+
+  // Sync if backend wave is LOWER than local (reset)
+  // OR if local is still at default 1 and backend has higher value (first load from saved state)
+  const isReset = newWave < monster.wave;
+  const isFirstLoad = monster.wave === 1 && newWave > 1;
+
+  if (isReset || isFirstLoad) {
+    console.log(`${isReset ? 'RESET' : 'FIRST LOAD'}: Syncing wave from ${monster.wave} to ${newWave}`);
+    monster.wave = newWave;
+    monster.maxHp = Math.floor(props.monsterConfig.baseHp * Math.pow(props.monsterConfig.hpMultiplier, newWave - 1));
+
+    // On first load, try to use saved HP
+    if (isFirstLoad && props.initialMonsterHp > 0 && props.initialMonsterHp <= monster.maxHp) {
+      monster.currentHp = props.initialMonsterHp;
+      console.log(`Restored HP: ${props.initialMonsterHp}/${monster.maxHp}`);
+    } else {
+      monster.currentHp = monster.maxHp;
+    }
+
+    monster.name = getMonsterName(newWave);
+    monster.dying = false;
+    monster.deathScale = 1;
+    monster.deathOpacity = 1;
+  }
+}, { immediate: true });
 
 // Carregar sprite do soldado
 const loadHeroSprite = () => {
@@ -185,8 +254,8 @@ const loadHeroSprite = () => {
   hero.image.onload = () => {
     hero.loaded = true;
   };
-  // Use prop if provided, otherwise check localStorage, fallback to default
-  const skin = props.heroSkin || localStorage.getItem('hero_skin') || 'hero_1';
+  // Use prop if provided, fallback to default
+  const skin = props.heroSkin || 'hero_1';
   hero.image.src = skin === 'hero_1' ? '/sprites/hero_1.png' : `/sprites/${skin}.png`;
 };
 
@@ -318,6 +387,32 @@ const updateBullets = () => {
       // Número de dano
       createDamageNumber(damage, bullet.isCrit, bullet.x, bullet.y);
 
+      // Emit damage for broadcast to overlay
+      emit('damageDealt', {
+        damage: Math.round(damage),
+        isCrit: bullet.isCrit,
+        x: bullet.x,
+        y: bullet.y
+      });
+
+      // Emit game state update for overlay sync
+      emit('gameStateUpdate', {
+        monster: {
+          name: monster.name,
+          wave: monster.wave,
+          currentHp: Math.max(0, Math.round(monster.currentHp)),
+          maxHp: Math.round(monster.maxHp)
+        },
+        heroStats: {
+          atk: props.heroStats.atk,
+          spd: props.heroStats.spd,
+          critChance: props.heroStats.critChance,
+          critDamage: props.heroStats.critDamage
+        },
+        bestWave: props.bestWave,
+        isLive: props.isLive
+      });
+
       // Verificar morte (skip in test mode - dummy is immortal)
       if (!props.testMode && monster.currentHp <= 0 && !monster.dying) {
         startDeathAnimation();
@@ -345,16 +440,22 @@ const startDeathAnimation = () => {
   monster.deathOpacity = 1;
 };
 
-// Spawnar próximo monstro
+// Spawnar próximo monstro - Backend controla o wave, apenas notificamos
 const spawnNextMonster = () => {
+  // Emitir evento ANTES de qualquer mudança local
+  // O backend incrementará o wave e retornará o novo valor
+  emit('monsterDefeated', monster.wave);
+
+  // Incrementar localmente para a visualização imediata
+  // O valor real virá do backend na próxima sincronização
   monster.wave++;
-  monster.maxHp = Math.floor(618 * Math.pow(1.5, monster.wave - 1)); // Base 618 HP × 1.5 per wave
+  monster.maxHp = Math.floor(props.monsterConfig.baseHp * Math.pow(props.monsterConfig.hpMultiplier, monster.wave - 1));
   monster.currentHp = monster.maxHp;
   monster.name = getMonsterName(monster.wave);
   monster.dying = false;
+  monster.spawning = false;
   monster.deathScale = 1;
   monster.deathOpacity = 1;
-  emit('monsterDefeated', monster.wave);
 };
 
 // Nome do monstro baseado na wave
@@ -406,10 +507,11 @@ const updateAnimations = (timestamp) => {
   if (monster.shakeOffset > 0) monster.shakeOffset *= 0.85;
 
   // Atualizar animação de morte
-  if (monster.dying) {
+  if (monster.dying && !monster.spawning) {
     monster.deathScale -= 0.03;
     monster.deathOpacity -= 0.04;
     if (monster.deathScale <= 0 || monster.deathOpacity <= 0) {
+      monster.spawning = true;  // Guard flag to prevent multiple calls
       spawnNextMonster();
     }
   }
@@ -560,8 +662,8 @@ const drawMonster = () => {
     c.fill();
   }
 
-  // Draw HP bar above monster in monster-only mode
-  if (isMonsterOnly) {
+  // Draw HP bar above monster in monster-only mode (if HUD is enabled)
+  if (isMonsterOnly && props.showHUD) {
     const barWidth = 200;
     const barHeight = 16;
     const barY = -size / 2 - 60;

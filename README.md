@@ -153,31 +153,46 @@ The overlay page has a transparent background, so only the hero, monster and eff
 
 ### ✅ Completed
 - [x] Canvas battle system
-- [x] Dashboard with Config/Test
+- [x] Dashboard with Config/Test tabs
 - [x] Global Rankings & Achievements
-- [x] Live/Offline toggle
 - [x] C# Backend with PostgreSQL
 - [x] REST API (Auth, User, Progress, Stats, Rankings)
-- [x] SignalR Hub
+- [x] SignalR Hub for real-time events
 - [x] Twitch OAuth flow (login + callback)
 - [x] TwitchEventSubService with WebSocket connection
-- [x] Broadcaster ID auto-set on login
 - [x] SignalR frontend integration
-- [x] Login frontend ↔ backend connected
-- [x] twitchId saved in localStorage and passed to SignalR
-- [x] Handler @buffApplied for real stats
 - [x] `gameconfig.json` - editable file for balancing
-- [x] Axios installed + `src/services/api.js`
 - [x] Dashboard loads config from backend
 - [x] Isolated Test mode with immortal "Dummy" monster
-- [x] Separate stats between test and live
-
-### 📋 Next Steps
 - [x] `/overlay?id=xxx` page for OBS
-- [x] Implement `exportOBS()` to copy URL
-- [ ] Auto-detect LIVE stream status via Twitch API
-- [ ] Multiple monster sprites
-- [ ] Viewer leaderboard
+- [x] Overlay sync with backend (polling every 10s)
+- [x] Monster state persistence (wave + HP saved between sessions)
+- [x] Auto-detect LIVE stream status via Twitch API
+- [x] Reset Progress button in dashboard
+- [x] HP base configurable (not hardcoded)
+
+### 🏗️ Architecture (v1.0)
+
+| Component | Role |
+|-----------|------|
+| **Overlay** | Real game, calls `recordDefeat`, saves to backend |
+| **Dashboard Config** | Status panel, auto-sync every 10s, no game |
+| **Dashboard Test** | Sandbox with immortal Dummy monster |
+
+### 📋 Next Steps (Visual Improvements)
+- [ ] Remove blob fallback and require actual sprites
+- [ ] Generate new monster sprites (better quality)
+- [ ] Add more hero skins
+- [ ] Update monster HP values for balanced progression
+- [ ] Add death/spawn animations
+- [ ] Particle effects for critical hits
+- [ ] Sound effects integration
+
+### 🎨 Art & Assets
+- [ ] Generate multiple monster sprites (Slime, Goblin, Orc, etc.)
+- [ ] Create hero variations
+- [ ] Add background variations
+- [ ] Victory/defeat animations
 
 ## 📄 License
 

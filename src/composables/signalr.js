@@ -5,24 +5,31 @@ const HUB_URL = "http://localhost:5041/gamehub";
 
 /**
  * Vue 3 composable for SignalR connection to GameHub
- * Handles connection, group joining, and Twitch event callbacks
+ * Supports both Dashboard (master) and Overlay (viewer) roles
  */
 export function useSignalR() {
     const connection = ref(null);
     const isConnected = ref(false);
     const lastEvent = ref(null);
+    const role = ref(null); // 'master' or 'viewer'
 
     let eventCallbacks = [];
+    let gameStateCallbacks = [];
+    let damageCallbacks = [];
+    let buffCallbacks = [];
 
     /**
      * Connect to the SignalR hub and join the broadcaster's group
      * @param {string} twitchId - The broadcaster's Twitch ID
+     * @param {string} connectionRole - 'master' (dashboard) or 'viewer' (overlay)
      */
-    async function connect(twitchId) {
+    async function connect(twitchId, connectionRole = 'viewer') {
         if (connection.value) {
             console.warn("SignalR already connected");
             return;
         }
+
+        role.value = connectionRole;
 
         connection.value = new signalR.HubConnectionBuilder()
             .withUrl(HUB_URL)
@@ -40,7 +47,7 @@ export function useSignalR() {
             console.log("SignalR reconnected");
             isConnected.value = true;
             // Rejoin game group after reconnect
-            connection.value.invoke("JoinGame", twitchId);
+            connection.value.invoke("JoinGame", twitchId, role.value);
         });
 
         connection.value.onclose(() => {
@@ -57,18 +64,31 @@ export function useSignalR() {
         connection.value.on("TwitchEvent", (event) => {
             console.log("TwitchEvent received:", event);
             lastEvent.value = event;
-
-            // Call all registered callbacks
             eventCallbacks.forEach(callback => callback(event));
+        });
+
+        // Listen for game state updates (for Overlay)
+        connection.value.on("GameStateUpdate", (gameState) => {
+            gameStateCallbacks.forEach(callback => callback(gameState));
+        });
+
+        // Listen for damage numbers (for Overlay)
+        connection.value.on("DamageDealt", (damageData) => {
+            damageCallbacks.forEach(callback => callback(damageData));
+        });
+
+        // Listen for buff notifications (for Overlay)
+        connection.value.on("BuffApplied", (buffData) => {
+            buffCallbacks.forEach(callback => callback(buffData));
         });
 
         try {
             await connection.value.start();
-            console.log("SignalR connected to", HUB_URL);
+            console.log("SignalR connected to", HUB_URL, "as", connectionRole);
             isConnected.value = true;
 
-            // Join the broadcaster's group
-            await connection.value.invoke("JoinGame", twitchId);
+            // Join the broadcaster's group with role
+            await connection.value.invoke("JoinGame", twitchId, connectionRole);
         } catch (err) {
             console.error("SignalR connection failed:", err);
             isConnected.value = false;
@@ -77,8 +97,43 @@ export function useSignalR() {
     }
 
     /**
+     * Broadcast game state to all overlays (called by Dashboard)
+     */
+    async function broadcastGameState(twitchId, gameState) {
+        if (!connection.value || !isConnected.value) return;
+        try {
+            await connection.value.invoke("BroadcastGameState", twitchId, gameState);
+        } catch (err) {
+            console.warn("Failed to broadcast game state:", err.message);
+        }
+    }
+
+    /**
+     * Broadcast damage number (called by Dashboard)
+     */
+    async function broadcastDamage(twitchId, damageData) {
+        if (!connection.value || !isConnected.value) return;
+        try {
+            await connection.value.invoke("BroadcastDamage", twitchId, damageData);
+        } catch (err) {
+            console.warn("Failed to broadcast damage:", err.message);
+        }
+    }
+
+    /**
+     * Broadcast buff notification (called by Dashboard)
+     */
+    async function broadcastBuff(twitchId, buffData) {
+        if (!connection.value || !isConnected.value) return;
+        try {
+            await connection.value.invoke("BroadcastBuff", twitchId, buffData);
+        } catch (err) {
+            console.warn("Failed to broadcast buff:", err.message);
+        }
+    }
+
+    /**
      * Disconnect from the SignalR hub
-     * @param {string} twitchId - The broadcaster's Twitch ID (for leaving group)
      */
     async function disconnect(twitchId) {
         if (!connection.value) return;
@@ -99,15 +154,41 @@ export function useSignalR() {
 
     /**
      * Register a callback for Twitch events
-     * @param {Function} callback - Function to call when event is received
-     * @returns {Function} Unsubscribe function
      */
     function onTwitchEvent(callback) {
         eventCallbacks.push(callback);
-
-        // Return unsubscribe function
         return () => {
             eventCallbacks = eventCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    /**
+     * Register a callback for game state updates (Overlay uses this)
+     */
+    function onGameStateUpdate(callback) {
+        gameStateCallbacks.push(callback);
+        return () => {
+            gameStateCallbacks = gameStateCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    /**
+     * Register a callback for damage events (Overlay uses this)
+     */
+    function onDamageDealt(callback) {
+        damageCallbacks.push(callback);
+        return () => {
+            damageCallbacks = damageCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    /**
+     * Register a callback for buff events (Overlay uses this)
+     */
+    function onBuffApplied(callback) {
+        buffCallbacks.push(callback);
+        return () => {
+            buffCallbacks = buffCallbacks.filter(cb => cb !== callback);
         };
     }
 
@@ -122,8 +203,18 @@ export function useSignalR() {
         connection,
         isConnected,
         lastEvent,
+        role,
         connect,
         disconnect,
-        onTwitchEvent
+        onTwitchEvent,
+        // New broadcast methods (for Dashboard)
+        broadcastGameState,
+        broadcastDamage,
+        broadcastBuff,
+        // New listener methods (for Overlay)
+        onGameStateUpdate,
+        onDamageDealt,
+        onBuffApplied
     };
 }
+

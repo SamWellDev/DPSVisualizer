@@ -108,7 +108,42 @@ Todos os componentes estão funcionando:
 - [x] SignalR só conecta no modo Config
 - [x] Visual normal no modo teste (não fica offline/grayscale)
 
+### ✅ Phase 10: Game State Persistence
+- [x] Carregar progresso do backend ao iniciar (wave, bestWave)
+- [x] Carregar stats do backend ao iniciar (ATK, SPD, Crit)
+- [x] Salvar progresso quando monstro morre (`recordDefeat`)
+- [x] Persistir buffs recebidos via SignalR
+- [x] Resetar estado no backend quando usuário clica Reset
+- [x] Detectar stream LIVE automaticamente via API Twitch
+
+### ✅ Phase 11: Dashboard/Overlay Architecture (COMPLETED 2026-01-12)
+- [x] Identified double wave increment (frontend + backend)
+- [x] Overlay is now MASTER - calls `recordDefeat`
+- [x] Dashboard Config tab shows status panel (no game)
+- [x] Dashboard Test tab has sandbox game with Dummy
+- [x] Dashboard auto-syncs from backend every 10s
+- [x] HP base now uses config (not hardcoded 50)
+- [x] All texts in English
+
+#### Architecture
+
+| Component | Role |
+|-----------|------|
+| **Overlay** | Real game, calls `recordDefeat`, saves to backend |
+| **Dashboard Config** | Status panel, auto-sync every 10s |
+| **Dashboard Test** | Sandbox with immortal Dummy monster |
+
 ---
+
+### 📋 Phase 12: Visual Improvements (TODO)
+- [ ] Remove blob fallback from monster sprite
+- [ ] Generate new monster sprites (better quality)
+- [ ] Add more hero skins
+- [ ] Update monster HP values in `gameconfig.json`
+- [ ] Add death/spawn animations
+- [ ] Particle effects for critical hits
+- [ ] Sound effects integration
+- [ ] Multiple monster sprites per wave
 
 ## Phase 6 Details: SignalR Frontend Integration
 

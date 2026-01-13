@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TwitchFighter.API.Data;
+using TwitchFighter.API.Services;
 
 namespace TwitchFighter.API.Controllers;
 
@@ -10,11 +11,13 @@ public class ProgressController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ProgressController> _logger;
+    private readonly GameConfigService _configService;
     
-    public ProgressController(AppDbContext context, ILogger<ProgressController> logger)
+    public ProgressController(AppDbContext context, ILogger<ProgressController> logger, GameConfigService configService)
     {
         _context = context;
         _logger = logger;
+        _configService = configService;
     }
     
     /// <summary>
@@ -35,9 +38,51 @@ public class ProgressController : ControllerBase
         {
             currentWave = progress.CurrentWave,
             bestWave = progress.BestWave,
+            monsterCurrentHp = progress.MonsterCurrentHp,
             currentMonth = progress.CurrentMonth,
             currentYear = progress.CurrentYear,
             updatedAt = progress.UpdatedAt
+        });
+    }
+    
+    /// <summary>
+    /// Save monster state with timestamp validation to prevent stale writes
+    /// </summary>
+    [HttpPost("{userId}/state")]
+    public async Task<IActionResult> SaveMonsterState(int userId, [FromBody] SaveStateRequest request)
+    {
+        var progress = await _context.Progresses
+            .FirstOrDefaultAsync(p => p.UserId == userId);
+        
+        if (progress == null)
+        {
+            return NotFound();
+        }
+        
+        // TIMESTAMP VALIDATION: Only accept if client timestamp >= backend timestamp
+        // This prevents stale saveState from overwriting newer data from reset/recordDefeat
+        if (request.LastModified.HasValue && request.LastModified.Value < progress.UpdatedAt)
+        {
+            _logger.LogWarning("Rejected stale saveState for user {UserId}: client {ClientTime} < backend {BackendTime}",
+                userId, request.LastModified, progress.UpdatedAt);
+            return Ok(new { 
+                saved = false, 
+                reason = "stale",
+                updatedAt = progress.UpdatedAt 
+            });
+        }
+        
+        progress.MonsterCurrentHp = request.MonsterHp;
+        progress.UpdatedAt = DateTime.UtcNow;
+        
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("Saved monster HP for user {UserId}: HP {Hp}", 
+            userId, request.MonsterHp);
+        
+        return Ok(new { 
+            saved = true,
+            updatedAt = progress.UpdatedAt 
         });
     }
     
@@ -93,6 +138,7 @@ public class ProgressController : ControllerBase
         var user = await _context.Users
             .Include(u => u.Progress)
             .Include(u => u.Achievements)
+                .ThenInclude(ua => ua.Achievement)
             .FirstOrDefaultAsync(u => u.Id == userId);
         
         if (user?.Progress == null)
@@ -101,6 +147,13 @@ public class ProgressController : ControllerBase
         }
         
         user.Progress.CurrentWave++;
+        
+        // Calculate new monster's maxHp for this wave (50 * 1.5^(wave-1))
+        // Save atomically with wave to prevent desync
+        int baseHp = _configService.Config.Monster.BaseHp;
+        double multiplier = _configService.Config.Monster.HpMultiplierPerWave;
+        int newMonsterMaxHp = (int)Math.Floor(baseHp * Math.Pow(multiplier, user.Progress.CurrentWave - 1));
+        user.Progress.MonsterCurrentHp = newMonsterMaxHp;
         user.Progress.UpdatedAt = DateTime.UtcNow;
         
         if (user.Progress.CurrentWave > user.Progress.BestWave)
@@ -137,6 +190,7 @@ public class ProgressController : ControllerBase
         {
             currentWave = user.Progress.CurrentWave,
             bestWave = user.Progress.BestWave,
+            updatedAt = user.Progress.UpdatedAt, // Include for timestamp sync
             newAchievements = newAchievements
         });
     }
@@ -166,4 +220,10 @@ public class ProgressController : ControllerBase
 public class UpdateWaveRequest
 {
     public int Wave { get; set; }
+}
+
+public class SaveStateRequest
+{
+    public int MonsterHp { get; set; }
+    public DateTime? LastModified { get; set; }
 }

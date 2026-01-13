@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TwitchFighter.API.Data;
@@ -11,9 +12,11 @@ using TwitchFighter.API.Data;
 namespace TwitchFighter.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260110214458_AddUserDisplayConfig")]
+    partial class AddUserDisplayConfig
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -151,9 +154,6 @@ namespace TwitchFighter.API.Migrations
                     b.Property<int>("CurrentYear")
                         .HasColumnType("integer");
 
-                    b.Property<int>("MonsterCurrentHp")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -244,10 +244,6 @@ namespace TwitchFighter.API.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DisplayName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("HeroSkin")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("LastLoginAt")

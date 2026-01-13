@@ -6,6 +6,7 @@ public class Progress
     public int UserId { get; set; }
     public int CurrentWave { get; set; } = 1;
     public int BestWave { get; set; } = 1;
+    public int MonsterCurrentHp { get; set; } = 0; // 0 = spawn new monster with full HP
     public int CurrentMonth { get; set; }
     public int CurrentYear { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
